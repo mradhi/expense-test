@@ -10,9 +10,15 @@ vars:
     DIR_CERT: ./docker/tmp
     # Used to differentiate Linux versions (WSL, native)
     OS:
-        sh: uname -r | grep Microsoft > /dev/null && echo "wsl" || echo "{{OS}}"
+        sh: uname -r | grep microsoft > /dev/null && echo "wsl" || echo "{{OS}}"
 
 tasks:
+    ssh-php:
+        desc: Access to PHP container via SSH
+        cmds:
+            - cmd: $BIN_DC exec php sh
+              silent: true
+    
     trust:
         desc: Trust the generated Caddy certificate
         cmds:
@@ -21,19 +27,20 @@ tasks:
                     {{if eq .OS "linux"}}
                         $BIN_CERTUTIL -d sql:$HOME/.pki/nssdb -A -t "C,," -n root -i {{.DIR_CERT}}/root.crt
                     {{else if eq .OS "wsl"}}
-                        powershell.exe -C "Import-Certificate -FilePath `wslpath -aw {{.DIR_CERT}}/root.crt` -CertStoreLocation Cert:\CurrentUser\Root
+                        powershell.exe -C "Import-Certificate -FilePath `wslpath -aw {{.DIR_CERT}}/root.crt` -CertStoreLocation Cert:\CurrentUser\Root | Out-Null"
                     {{end}}
                 silent: true
-            -   cmd: echo "The cert file is installed successfully"
+            -   cmd: echo "The certificate file is installed successfully"
                 silent: true
 
     copycert:
         desc: Copy Caddy cert file to docker/tmp directory
         cmds:
-            - mkdir -p docker/tmp
+            -   cmd: mkdir -p docker/tmp
+                silent: true
             -   cmd: $BIN_DO cp $($BIN_DC ps -q caddy):/data/caddy/pki/authorities/local/root.crt {{.DIR_CERT}}/root.crt
                 silent: true
-            -   cmd: echo "The Caddy cert file moved to {{.DIR_CERT}}/root.crt"
+            -   cmd: echo "The Caddy cert file moved to $(tput bold){{.DIR_CERT}}/root.crt"
                 silent: true
 
     fix-permission:
@@ -48,23 +55,33 @@ tasks:
             -   task: trust
             -   cmd: sleep 5
                 silent: true
-            -   cmd: echo "The application is running at https://$SERVER_NAME"
+            -   cmd: echo "The application is running at $(tput bold)https://$SERVER_NAME"
                 silent: true
             -   cmd: |
                     {{if eq .OS "linux"}}
                         xdg-open https://$SERVER_NAME
                     {{else if eq .OS "wsl"}}
-                        explorer.exe https://$SERVER_NAME
+                        powershell.exe /c start https://$SERVER_NAME
                     {{else if eq .OS "darwin"}}
                         open https://$SERVER_NAME
                     {{end}}
                 silent: true
-
+    
+    recreate:
+        desc: Recreate and start containers
+        cmds:
+            - task: down
+            - task: up
 
     down:
+        desc: Remove docker containers (useful for a fresh start)
+        cmds:
+            - $BIN_DC down --remove-orphans --volumes {{.CLI_ARGS}}
+
+    stop:
         desc: Stop docker containers
         cmds:
-            - $BIN_DC down --remove-orphans {{.CLI_ARGS}}
+          - $BIN_DC stop
 
     uninstall:
         desc: Uninstall project containers, images and volumes
@@ -82,12 +99,12 @@ tasks:
     build:
         desc: Build project containers
         cmds:
-            -   task: down
+            -   task: stop
             - $BIN_DC build {{.CLI_ARGS}}
             -   task: up
 
     restart:
         desc: Restart project containers
         cmds:
-            -   task: down
+            -   task: stop
             -   task: up
