@@ -1,13 +1,16 @@
 version: '3'
 
 env:
-    BIN_DC: docker-compose{{exeExt}}
-    BIN_DO: docker{{exeExt}}
-    BIN_CERTUTIL: certutil{{exeExt}}
+    BIN_DC: docker-compose
+    BIN_DO: docker
+    BIN_CERTUTIL: certutil
     SERVER_NAME: localhost
 
 vars:
     DIR_CERT: ./docker/tmp
+    # Used to differentiate Linux versions (WSL, native)
+    OS:
+        sh: uname -r | grep Microsoft > /dev/null && echo "wsl" || echo "{{OS}}"
 
 tasks:
     trust:
@@ -15,10 +18,10 @@ tasks:
         cmds:
             -   task: copycert
             -   cmd: |
-                    {{if eq OS "linux"}}
+                    {{if eq .OS "linux"}}
                         $BIN_CERTUTIL -d sql:$HOME/.pki/nssdb -A -t "C,," -n root -i {{.DIR_CERT}}/root.crt
-                    {{else if eq OS "windows"}}
-                        $BIN_CERTUTIL -addstore root {{.DIR_CERT}}/root.crt
+                    {{else if eq .OS "wsl"}}
+                        explorer.exe `wslpath -aw {{.DIR_CERT}}/root.crt`
                     {{end}}
                 silent: true
             -   cmd: echo "The cert file is installed successfully"
@@ -48,11 +51,11 @@ tasks:
             -   cmd: echo "The application is running at https://$SERVER_NAME"
                 silent: true
             -   cmd: |
-                    {{if eq OS "linux"}}
+                    {{if eq .OS "linux"}}
                         xdg-open https://$SERVER_NAME
-                    {{else if eq OS "windows"}}
+                    {{else if eq .OS "wsl"}}
                         explorer.exe https://$SERVER_NAME
-                    {{else if eq OS "darwin"}}
+                    {{else if eq .OS "darwin"}}
                         open https://$SERVER_NAME
                     {{end}}
                 silent: true
