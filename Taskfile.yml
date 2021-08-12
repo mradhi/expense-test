@@ -21,7 +21,7 @@ tasks:
                     {{if eq .OS "linux"}}
                         $BIN_CERTUTIL -d sql:$HOME/.pki/nssdb -A -t "C,," -n root -i {{.DIR_CERT}}/root.crt
                     {{else if eq .OS "wsl"}}
-                        explorer.exe `wslpath -aw {{.DIR_CERT}}/root.crt`
+                        powershell.exe -C "Import-Certificate -FilePath `wslpath -aw {{.DIR_CERT}}/root.crt` -CertStoreLocation Cert:\CurrentUser\Root
                     {{end}}
                 silent: true
             -   cmd: echo "The cert file is installed successfully"
