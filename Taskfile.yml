@@ -1,0 +1,90 @@
+version: '3'
+
+env:
+    BIN_DC: docker-compose{{exeExt}}
+    BIN_DO: docker{{exeExt}}
+    BIN_CERTUTIL: certutil{{exeExt}}
+    SERVER_NAME: localhost
+
+vars:
+    DIR_CERT: ./docker/tmp
+
+tasks:
+    trust:
+        desc: Trust the generated Caddy certificate
+        cmds:
+            -   task: copycert
+            -   cmd: |
+                    {{if eq OS "linux"}}
+                        $BIN_CERTUTIL -d sql:$HOME/.pki/nssdb -A -t "C,," -n root -i {{.DIR_CERT}}/root.crt
+                    {{else if eq OS "windows"}}
+                        $BIN_CERTUTIL -addstore root {{.DIR_CERT}}/root.crt
+                    {{end}}
+                silent: true
+            -   cmd: echo "The cert file is installed successfully"
+                silent: true
+
+    copycert:
+        desc: Copy Caddy cert file to docker/tmp directory
+        cmds:
+            - mkdir -p docker/tmp
+            -   cmd: $BIN_DO cp $($BIN_DC ps -q caddy):/data/caddy/pki/authorities/local/root.crt {{.DIR_CERT}}/root.crt
+                silent: true
+            -   cmd: echo "The Caddy cert file moved to {{.DIR_CERT}}/root.crt"
+                silent: true
+
+    fix-permission:
+        desc: Fix project permission policy due to web server auto generated files
+        cmds:
+            - $BIN_DC run --rm php chown -R $(id -u):$(id -g) .
+
+    up:
+        desc: Run docker containers
+        cmds:
+            - $BIN_DC up -d {{.CLI_ARGS}}
+            -   task: trust
+            -   cmd: sleep 5
+                silent: true
+            -   cmd: echo "The application is running at https://$SERVER_NAME"
+                silent: true
+            -   cmd: |
+                    {{if eq OS "linux"}}
+                        xdg-open https://$SERVER_NAME
+                    {{else if eq OS "windows"}}
+                        explorer.exe https://$SERVER_NAME
+                    {{else if eq OS "darwin"}}
+                        open https://$SERVER_NAME
+                    {{end}}
+                silent: true
+
+
+    down:
+        desc: Stop docker containers
+        cmds:
+            - $BIN_DC down --remove-orphans {{.CLI_ARGS}}
+
+    uninstall:
+        desc: Uninstall project containers, images and volumes
+        cmds:
+            - $BIN_DC down --remove-orphans --volumes --rmi all
+
+    install:
+        desc: Install project containers, images and volumes
+        cmds:
+            -   task: uninstall
+            - $BIN_DC build --pull --no-cache
+            -   task: up
+            -   task: fix-permission
+
+    build:
+        desc: Build project containers
+        cmds:
+            -   task: down
+            - $BIN_DC build {{.CLI_ARGS}}
+            -   task: up
+
+    restart:
+        desc: Restart project containers
+        cmds:
+            -   task: down
+            -   task: up
