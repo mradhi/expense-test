@@ -16,8 +16,8 @@ tasks:
     ssh-php:
         desc: Access to PHP container via SSH
         cmds:
-            - cmd: $BIN_DC exec php sh
-              silent: true
+            -   cmd: $BIN_DC exec php sh
+                silent: true
     
     trust:
         desc: Trust the generated Caddy certificate
@@ -66,12 +66,12 @@ tasks:
                         open https://$SERVER_NAME
                     {{end}}
                 silent: true
-    
+
     recreate:
         desc: Recreate and start containers
         cmds:
-            - task: down
-            - task: up
+            -   task: down
+            -   task: up
 
     down:
         desc: Remove docker containers (useful for a fresh start)
@@ -81,7 +81,7 @@ tasks:
     stop:
         desc: Stop docker containers
         cmds:
-          - $BIN_DC stop
+            - $BIN_DC stop
 
     uninstall:
         desc: Uninstall project containers, images and volumes
